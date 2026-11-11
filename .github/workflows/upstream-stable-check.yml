@@ -1,0 +1,83 @@
+# Raz dziennie sprawdza upstreamowy tag `stable` (n8n-io/n8n). Jeśli wskazuje wydanie
+# n8n@X.Y.Z, którego nie ma w gałęzi dev forka, zakłada issue z instrukcją.
+# Niczego nie merguje ani nie wypycha (aktualizacja według FORK.md).
+# Plik trafia do forka jako: .github/workflows/upstream-stable-check.yml
+# Harmonogram działa tylko z gałęzi domyślnej repozytorium (musi nią być `dev`).
+
+name: Upstream stable check
+
+on:
+  schedule:
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: upstream-stable-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      UPSTREAM: https://github.com/n8n-io/n8n.git
+    steps:
+      - name: Find release pointed by upstream `stable`
+        id: stable
+        run: |
+          set -euo pipefail
+          REFS="$(git ls-remote --tags "$UPSTREAM")"
+          # Commit tagu `stable` (dla tagu z adnotacją bierzemy linię ^{}).
+          SHA="$(echo "$REFS" | awk '$2=="refs/tags/stable^{}"{print $1}')"
+          [ -n "$SHA" ] || SHA="$(echo "$REFS" | awk '$2=="refs/tags/stable"{print $1}')"
+          [ -n "$SHA" ] || { echo "::error::Brak tagu stable w upstream"; exit 1; }
+          # Tag wydania n8n@X.Y.Z wskazujący ten sam commit.
+          TAG="$(echo "$REFS" | awk -v s="$SHA" '$1==s{print $2}' \
+            | sed -e 's|^refs/tags/||' -e 's|\^{}$||' \
+            | grep -E '^n8n@[0-9]+\.[0-9]+\.[0-9]+$' | sort -uV | tail -n 1 || true)"
+          [ -n "$TAG" ] || { echo "::error::Brak tagu n8n@X.Y.Z dla commita stable $SHA"; exit 1; }
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "stable -> $TAG ($SHA)"
+
+      - name: Check whether dev already contains it
+        id: dev
+        run: |
+          set -euo pipefail
+          # Fork dzieli obiekty z upstream, więc commit wydania jest widoczny w API forka.
+          STATUS="$(gh api "repos/${GITHUB_REPOSITORY}/compare/${{ steps.stable.outputs.sha }}...dev" --jq .status)"
+          echo "compare ${{ steps.stable.outputs.tag }}...dev: $STATUS"
+          if [ "$STATUS" = "ahead" ] || [ "$STATUS" = "identical" ]; then
+            echo "contained=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "contained=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open issue for new stable release
+        if: steps.dev.outputs.contained == 'false'
+        env:
+          TAG: ${{ steps.stable.outputs.tag }}
+        run: |
+          set -euo pipefail
+          TITLE="Nowe stabilne wydanie n8n: ${TAG}"
+          EXISTING="$(gh issue list -R "$GITHUB_REPOSITORY" --state all --search "\"${TITLE}\" in:title" --json number --jq 'length')"
+          if [ "$EXISTING" != "0" ]; then
+            echo "Issue dla ${TAG} już istnieje."
+            exit 0
+          fi
+          BODY="$(printf '%s\n' \
+            "Upstreamowy tag \`stable\` wskazuje **${TAG}**, którego nie ma jeszcze w gałęzi \`dev\`." \
+            "" \
+            "Aktualizacja według \`FORK.md\` (sekcja \"Aktualizacja n8n do nowego stabilnego wydania\"):" \
+            "1. gałąź \`upstream/${TAG/n8n@/n8n-}\` z \`origin/dev\` + \`git merge --no-ff ${TAG}\`," \
+            "2. PR do \`dev\` scalany przez **Create a merge commit**," \
+            "3. wyłączenie nowych workflowów upstream," \
+            "4. PR \`dev\` -> \`build\` (squash) uruchamia build obrazów." \
+            "" \
+            "Notatki do wydania: https://github.com/n8n-io/n8n/releases/tag/${TAG}")"
+          gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
