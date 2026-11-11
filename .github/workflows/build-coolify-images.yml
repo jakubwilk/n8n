@@ -1,0 +1,102 @@
+# Buduje obrazy n8n i runners z gałęzi `build` forka i wypycha je do GHCR.
+# Plik trafia do forka jako: .github/workflows/build-coolify-images.yml
+#
+# Tag obu obrazów: <wersja n8n z packages/cli/package.json>-<7 znaków SHA commita>,
+# np. ghcr.io/jakubwilk/n8n:2.47.4-ec12419 i ghcr.io/jakubwilk/n8n-runners:2.47.4-ec12419.
+# Oba obrazy powstają z tego samego commita, więc ich wersje zawsze się zgadzają
+# (wymaganie n8n dla runnerów).
+#
+# Wersje akcji są przypięte do tych samych SHA, których używa upstream przy n8n@2.47.4.
+
+name: Build Coolify images
+
+on:
+  push:
+    branches: [build]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-coolify-images
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      # Tak jak w upstream CI (.github/workflows/docker-build-push.yml).
+      NODE_OPTIONS: '--max-old-space-size=7168'
+      NODE_VERSION: '26.13.0'
+    steps:
+      # Runner ma ograniczone miejsce na dysku, a build monorepo i obrazów jest duży.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Read versions
+        id: meta
+        run: |
+          VERSION="$(node -p "require('./packages/cli/package.json').version")"
+          PNPM_VERSION="$(node -p "require('./package.json').packageManager.replace(/^pnpm@/, '').split('+')[0]")"
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "pnpm=${PNPM_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "n8n ${VERSION}, pnpm ${PNPM_VERSION}, tag ${VERSION}-${SHORT_SHA}"
+
+      - name: Setup pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          version: ${{ steps.meta.outputs.pnpm }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify toolchain
+        run: |
+          node --version
+          pnpm --version
+          test "$(node --version)" = "v${NODE_VERSION}"
+          test "$(pnpm --version)" = "${{ steps.meta.outputs.pnpm }}"
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # build-n8n.mjs: pnpm install + build monorepo -> compiled/
+      # dockerize-n8n.mjs: docker buildx bake (cele n8n i runners); nazwa z hostem
+      # rejestru powoduje bezpośredni push.
+      - name: Build and push images
+        env:
+          IMAGE_BASE_NAME: ghcr.io/${{ github.repository_owner }}/n8n
+          RUNNERS_IMAGE_BASE_NAME: ghcr.io/${{ github.repository_owner }}/n8n-runners
+          IMAGE_TAG: ${{ steps.meta.outputs.tag }}
+          N8N_VERSION: ${{ steps.meta.outputs.version }}
+          N8N_RELEASE_TYPE: stable
+          DOCKER_PLATFORM: linux/amd64
+        run: pnpm build:docker
+
+      - name: Summary
+        run: |
+          {
+            echo "### Obrazy"
+            echo "- \`ghcr.io/${{ github.repository_owner }}/n8n:${{ steps.meta.outputs.tag }}\`"
+            echo "- \`ghcr.io/${{ github.repository_owner }}/n8n-runners:${{ steps.meta.outputs.tag }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
