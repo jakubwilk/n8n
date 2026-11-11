@@ -70,6 +70,12 @@ jobs:
           test "$(node --version)" = "v${NODE_VERSION}"
           test "$(pnpm --version)" = "${{ steps.meta.outputs.pnpm }}"
 
+      # scripts/build-n8n.mjs importuje `zx` z node_modules, zanim sam uruchomi
+      # pnpm install, więc zależności muszą być zainstalowane wcześniej.
+      # Te same flagi co w upstream (.github/actions/setup-nodejs, krok "Install Dependencies").
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --trust-lockfile
+
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
