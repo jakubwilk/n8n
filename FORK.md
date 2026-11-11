@@ -9,7 +9,7 @@ Komunikacja z właścicielem repozytorium: po polsku.
 1. **Na produkcję trafia wyłącznie stabilny kod n8n**, czyli wydanie wskazywane przez upstreamowy tag `stable` (np. `n8n@2.47.4`). Nigdy nie merguj upstreamowego `master` (ani `master` forka) do `dev` ani `build`. `master` n8n to niewydany kod deweloperski.
 2. **Wszystkie zmiany idą przez pull requesty na GitHubie.** Nie rób lokalnego `git merge` do `dev` ani `build` z pushem. Pracujesz na gałęzi, robisz push i otwierasz PR.
 3. **Bez force-pushy na `dev` i `build`**, chyba że właściciel wprost o to poprosi.
-4. **Nie zmieniaj serwera.** Wdrożenie (zmiana tagu obrazu w Coolify) robi właściciel ręcznie. Dokumentacja serwera jest w osobnym projekcie (`D:\04.devops\ovh`).
+4. **Scalenie PR do `build` = wdrożenie na produkcję.** Workflow buduje obrazy i sam aktualizuje n8n w Coolify. Nie scalaj niczego do `build` bez wyraźnej zgody właściciela. Nie łącz się z serwerem ani z API Coolify z tego repozytorium. Dokumentacja serwera jest w osobnym projekcie (`D:\04.devops\ovh`).
 
 ## Gałęzie
 
@@ -17,7 +17,9 @@ Komunikacja z właścicielem repozytorium: po polsku.
 |---|---|---|
 | `master` | lustro upstream `master` (przycisk „Sync fork”) | tylko z upstream. Nic z niej nie budujemy ani nie mergujemy dalej |
 | `dev` | **gałąź domyślna**: stabilny tag upstream + własne zmiany | PR z gałęzi funkcji (squash) i PR z tagiem upstream (merge commit) |
-| `build` | wersja produkcyjna. Push uruchamia build obrazów | tylko PR `dev` → `build` (squash) |
+| `build` | wersja produkcyjna. Push uruchamia build obrazów **i automatyczne wdrożenie** | tylko PR `dev` → `build` (squash) |
+
+**Nigdy nie klikaj „Sync fork” na `dev` ani `build`.** Przycisk porównuje je z upstreamowym `master` i wciągnąłby niewydany kod. „Sync fork” tylko na `master`, albo `gh repo sync jakubwilk/n8n -b master`. Komunikat „X commits ahead, Y behind n8n-io/n8n:master” przy `dev` jest normalny.
 
 Remote `upstream` = `https://github.com/n8n-io/n8n.git` (dodaj go, jeśli go nie ma: `git remote add upstream https://github.com/n8n-io/n8n.git`).
 
@@ -86,13 +88,16 @@ Własne zmiany trzymaj możliwie małe i odseparowane od kodu upstream, bo każd
   - `ghcr.io/jakubwilk/n8n:<wersja>-<sha7>`
   - `ghcr.io/jakubwilk/n8n-runners:<wersja>-<sha7>`
   - `<wersja>` pochodzi z `packages/cli/package.json`, `<sha7>` to 7 znaków SHA commita na `build`. Pakiety GHCR są publiczne.
+  - oba obrazy dostają też ruchomy tag **`prod`**, którego używa produkcja.
 - **Obrazy `n8n` i `n8n-runners` muszą mieć ten sam tag** (wymaganie n8n). Oba powstają w jednym przebiegu.
 - Wszystkie pozostałe workflowy upstream są w forku wyłączone. Nie włączaj ich.
 
-## Wdrożenie (robi właściciel)
+## Wdrożenie (automatyczne)
 
-1. Zrzut bazy n8n na serwerze (`pg_dump -Fc`), bo migracje n8n są jednokierunkowe.
-2. Coolify → usługa n8n → Edit Compose File: zmiana tagu w **czterech** miejscach (`n8n`, `n8n-worker`, `task-runners`, `task-runners-worker`) na nowy `<wersja>-<sha7>`.
-3. **Restart current** i sprawdzenie wersji, logów i wykonań.
+Po buildzie z gałęzi `build` ten sam workflow:
+1. wywołuje deploy usługi n8n w Coolify (`POST /api/v1/deploy?uuid=0gd7ymn3h6oyfxjycxsdghwg`, token z sekretu `COOLIFY_TOKEN`; bez sekretu krok jest pomijany),
+2. czeka na `https://ai-automation.underwolfstudio.com/healthz`. Brak odpowiedzi kończy przebieg błędem.
 
-Środowisko produkcyjne: n8n w queue mode (main + worker, każdy z runnerem), Redis, PostgreSQL 16. Nowa wersja nie może być starsza niż ta, która działa.
+Po stronie serwera restart usługi zaczyna się od kontenera `db-backup`, który robi zrzut bazy. Dopiero potem startują n8n i worker z nowymi obrazami `:prod`. Migracje bazy n8n są jednokierunkowe, a zrzut pozwala wrócić.
+
+Środowisko produkcyjne: n8n w queue mode (main + worker, każdy z runnerem), Redis, PostgreSQL 16. **Nowa wersja nie może być starsza niż ta, która działa.** Nigdy nie cofaj `build` do starszego wydania n8n, bo wdrożyłoby się automatycznie na bazę po nowszej migracji.
