@@ -14,14 +14,11 @@ import type {
 import { NodeApiError, NodeConnectionTypes, NodeOperationError, requestPath } from 'n8n-workflow';
 
 import {
-	encryptSecret,
 	getFileSha,
-	getRepositoryPublicKey,
 	githubApiRequest,
 	githubApiRequestAllItems,
 	isBase64,
 	validateJSON,
-	validateSecretName,
 } from './GenericFunctions';
 import { getRefs, getRepositories, getUsers, getWorkflows } from './SearchFunctions';
 import { configureWaitTillDate } from '../../utils/sendAndWait/configureWaitTillDate.util';
@@ -2999,34 +2996,6 @@ export class Github implements INodeType {
 						body.body = this.getNodeParameter('body', i) as string;
 
 						endpoint = requestPath`/repos/${owner}/${repository}/pulls/${pullRequestNumber}/reviews/${reviewId}`;
-					}
-				} else if (resource === 'secret') {
-					if (operation === 'createOrUpdate') {
-						// ----------------------------------
-						//         createOrUpdate
-						// ----------------------------------
-						requestMethod = 'PUT';
-
-						const secretName = this.getNodeParameter('secretName', i) as string;
-						const secretValue = this.getNodeParameter('secretValue', i) as string;
-
-						const secretNameError = validateSecretName(secretName);
-						if (secretNameError) {
-							throw new NodeOperationError(this.getNode(), secretNameError, { itemIndex: i });
-						}
-
-						// First, get the repository's public key for encryption
-						const { key_id, key } = await getRepositoryPublicKey.call(this, owner, repository);
-
-						// Encrypt the secret value using the public key
-						const encryptedValue = await encryptSecret(secretValue, key);
-
-						body = {
-							encrypted_value: encryptedValue,
-							key_id,
-						};
-
-						endpoint = requestPath`/repos/${owner}/${repository}/actions/secrets/${secretName}`;
 					}
 				} else if (resource === 'user') {
 					if (operation === 'getRepositories') {

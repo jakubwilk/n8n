@@ -36,7 +36,7 @@ export async function apiRequest(
 
 	const credentials = await this.getCredentials<N8nApiCredentials>('n8nApi');
 	const baseUrl = credentials.baseUrl;
-	const normalizedBaseUrl = baseUrl.replace(/([^:])\/{2,}/g, '$1/').replace(/\/+$/, '');
+	const normalizedBaseUrl = baseUrl.replace(new RegExp('/$'), '');
 
 	try {
 		const options: WithRequestTarget<IRequestOptions, 'uri'> = {

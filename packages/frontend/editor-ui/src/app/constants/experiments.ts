@@ -136,13 +136,12 @@ export const OPEN_WORKFLOW_IN_ASSISTANT_EXPERIMENT = createExperiment(
 	'108_open_workflow_in_assistant',
 );
 
-// Experiment cleanup (129_aia_inspiration_from_taxonomy_v2)
+// Experiment cleanup (142_aia_inspiration_from_taxonomy_v3)
 export const INSTANCE_AI_INSPIRATION_FROM_TAXONOMY_EXPERIMENT = createExperiment(
-	'129_aia_inspiration_from_taxonomy_v2',
+	'142_aia_inspiration_from_taxonomy_v3',
 	{
 		control: 'control',
 		variant: 'variant',
-		variantBis: 'variant-bis',
 	},
 );
 // EOF Experiment cleanup
@@ -158,19 +157,17 @@ export const INSTANCE_AI_CONCISE_STYLE_EXPERIMENT = createExperiment(
 export const INSTANCE_AI_SETUP_PANEL_EXPERIMENT = createExperiment(INSTANCE_AI_SETUP_PANEL_FLAG);
 export const AI_ASSISTANT_AT_MENTIONS_EXPERIMENT = createExperiment(AI_ASSISTANT_AT_MENTIONS_FLAG);
 
-/**
- * Multivariate: the enabled arm is the variant string `variant`, not a boolean,
- * so the check goes through `isVariantEnabled` rather than `isFeatureEnabled`.
- * The default `control` / `variant` arms match the PostHog flag.
- */
-export const MCP_JSON_NUDGE_EXPERIMENT = createExperiment('113_mcp_nudge_modal_on_export_import');
-
 export const CREDENTIAL_DESCRIPTIONS_EXPERIMENT = createExperiment(CREDENTIAL_DESCRIPTIONS_FLAG);
 export const ASSISTANT_SKILLS_EXPERIMENT = createExperiment(ASSISTANT_SKILLS_FLAG);
 
 // Experiment cleanup (123_surface_mcp_to_claude_trial_users)
 export const MCP_DISCOVERY_EXPERIMENT = createExperiment('123_surface_mcp_to_claude_trial_users');
 // EOF Experiment cleanup
+
+export const ENABLE_POSTHOG_AUTOCAPTURE_EXPERIMENT = createExperiment(
+	'139_enable_posthog_autocapture',
+);
+
 export const SURFACE_ASSISTANT_ON_WORKFLOW_ERROR_EXPERIMENT = createExperiment(
 	'119_surface_assistant_on_workflow_error',
 );
@@ -274,10 +271,9 @@ export const EXPERIMENTS_TO_TRACK = [
 	INLINE_AGENTS_EXPERIMENT.name,
 	INSTANCE_AI_FREE_NUDGE_EXPERIMENT.name,
 	OPEN_WORKFLOW_IN_ASSISTANT_EXPERIMENT.name,
-	// Experiment cleanup (129_aia_inspiration_from_taxonomy_v2)
+	// Experiment cleanup (142_aia_inspiration_from_taxonomy_v3)
 	INSTANCE_AI_INSPIRATION_FROM_TAXONOMY_EXPERIMENT.name,
 	// EOF Experiment cleanup
-	MCP_JSON_NUDGE_EXPERIMENT.name,
 	CREDENTIAL_DESCRIPTIONS_EXPERIMENT.name,
 	ASSISTANT_SKILLS_EXPERIMENT.name,
 	SURFACE_ASSISTANT_ON_WORKFLOW_ERROR_EXPERIMENT.name,

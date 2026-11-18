@@ -1,15 +1,16 @@
-import type {
-	IHttpRequestMethods,
-	IDataObject,
-	IExecuteFunctions,
-	IHookFunctions,
-	ILoadOptionsFunctions,
-	IWebhookFunctions,
-	IRequestOptions,
-	RequestPath,
-	WithRequestTarget,
+import {
+	OperationalError,
+	requestUrl,
+	type IHttpRequestMethods,
+	type IDataObject,
+	type IExecuteFunctions,
+	type IHookFunctions,
+	type ILoadOptionsFunctions,
+	type IWebhookFunctions,
+	type IRequestOptions,
+	type RequestPath,
+	type WithRequestTarget,
 } from 'n8n-workflow';
-import { OperationalError, requestUrl } from 'n8n-workflow';
 
 import { BASE_URL } from './constants';
 
