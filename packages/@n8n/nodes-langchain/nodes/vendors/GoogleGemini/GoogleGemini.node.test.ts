@@ -122,6 +122,7 @@ describe('GoogleGemini Node', () => {
 				}),
 			);
 		});
+
 		it('should include thinking options when the thinking budget is specified', async () => {
 			executeFunctionsMock.getNodeParameter.mockImplementation((parameter: string) => {
 				switch (parameter) {

@@ -54,7 +54,7 @@ const assistantRuntime = z
 const freeNudgeVariant = z.enum(['control', 'variant-1', 'variant-2']);
 const freeNudgeTreatmentVariant = z.enum(['variant-1', 'variant-2']);
 const workflowPreviewsAboveAssistantVariant = z.enum(['control', 'variant']);
-const taxonomyInspirationVariant = z.enum(['control', 'variant', 'variant-bis']);
+const taxonomyInspirationVariant = z.enum(['control', 'variant']);
 const assistantMentionKind = z.enum(['workflow', 'node', 'group']);
 const assistantMentionTriggerSource = z.enum(['typed', 'button']);
 /** Cap on the query text the empty-search event carries; the emitter cuts to it after redaction. */
@@ -77,8 +77,7 @@ const assistantMentionCounts = z
 		group: mentionCount,
 	})
 	.describe('Picker mentions attached to the message, by kind');
-// Shared by the send and the response events so a with/without-mentions cut reads
-// the same columns on both.
+// Shared by the send and response events so context cuts use the same columns.
 const mentionContextProperties = {
 	mention_counts: assistantMentionCounts,
 	attachment_count: z
@@ -86,8 +85,13 @@ const mentionContextProperties = {
 		.int()
 		.nonnegative()
 		.describe(
-			'All outbound attachments: files, workflow, agent and nodes attachments, including ones the host adds',
+			'All outbound attachments: files, workflows, agents, nodes, and selected app preview elements, including ones the host adds',
 		),
+	selected_element_count: z
+		.number()
+		.int()
+		.nonnegative()
+		.describe('Selected app preview elements included in the outbound attachments'),
 };
 // Experiment cleanup: remove with openWorkflowInAssistant.
 const openWorkflowInAssistantVariant = z.enum(['control', 'variant']);
@@ -336,17 +340,17 @@ export const INSTANCE_AI_TELEMETRY = defineTelemetryEvents({
 		}),
 	},
 	// EOF Experiment cleanup
-	// Experiment cleanup (129_aia_inspiration_from_taxonomy_v2)
+	// Experiment cleanup (142_aia_inspiration_from_taxonomy_v3)
 	INSPIRATION_FROM_TAXONOMY_EXPOSED: {
 		name: 'AI Assistant inspiration from taxonomy exposed',
 		description:
-			'A sales-and-marketing respondent assigned to 129_aia_inspiration_from_taxonomy_v2 reached the n8n Assistant empty state, the view that shows the prompt suggestions, including the control variant. Fires once per visit. Does not fire on a thread, nor for the proactive starter, split empty-state, n8n Chat agent picker, or workflow-preview layouts, which replace this suggestion list. Not fired for any other experiment.',
+			'A sales-and-marketing respondent assigned to 142_aia_inspiration_from_taxonomy_v3 reached the n8n Assistant empty state, the view that shows the prompt suggestions, including the control variant. Fires once per visit. Does not fire on a thread, nor for the proactive starter, split empty-state, n8n Chat agent picker, or workflow-preview layouts, which replace this suggestion list. Not fired for any other experiment.',
 		properties: z.object({
 			variant: taxonomyInspirationVariant.describe(
-				'Variant of the 129_aia_inspiration_from_taxonomy_v2 feature flag the user saw: control, variant, or variant-bis',
+				'Variant of the 142_aia_inspiration_from_taxonomy_v3 feature flag the user saw: control or variant',
 			),
 			// eslint-disable-next-line @typescript-eslint/naming-convention -- PostHog feature property
-			'$feature/129_aia_inspiration_from_taxonomy_v2': taxonomyInspirationVariant,
+			'$feature/142_aia_inspiration_from_taxonomy_v3': taxonomyInspirationVariant,
 		}),
 	},
 	// EOF Experiment cleanup
@@ -500,7 +504,7 @@ export const INSTANCE_AI_TELEMETRY = defineTelemetryEvents({
 	USER_RECEIVED_AI_ASSISTANT_RESPONSE: {
 		name: 'User received AI Assistant response',
 		description:
-			'The initial foreground AI Assistant reply was rendered after a user submitted a chat message. Starts before attachment processing and first-thread creation, then fires once when the initial run completes or pauses for user input. Automated follow-up runs do not create another sample. Repeats the mention and attachment counts of the message that started the run, so outcome cuts by context need no join back to "User sent builder message".',
+			'The initial foreground AI Assistant reply was rendered after a user submitted a chat message. Starts before attachment processing and first-thread creation, then fires once when the initial run completes or pauses for user input. Automated follow-up runs do not create another sample. Repeats the mention, attachment, and selected element counts of the message that started the run, so outcome cuts by context need no join back to "User sent builder message".',
 		properties: z.object({
 			instance_id: z.string(),
 			thread_id: z.string(),
@@ -757,7 +761,7 @@ export const INSTANCE_AI_TELEMETRY = defineTelemetryEvents({
 				.enum(['built', 'fetched', 'attached', 'mentioned'])
 				.nullable()
 				.describe(
-					"How the mentioned workflow first became a tab in the thread, or null when already_artifact is false. 'built' is the assistant creating or editing it, 'fetched' is the assistant reading it in a lookup that opens a tab (even if it edits it later), 'attached' is a message or the editor hand-off attaching it, 'mentioned' is an earlier pick in this picker. Known for the current session only: after a reload an earlier mention reads as 'attached', because both reach the thread as a workflow attachment. A node or group pick with 'mentioned' is the two-step journey",
+					"How the mentioned workflow first became a tab in the thread, or null when already_artifact is false. 'built' is the assistant creating or editing it, 'fetched' is the assistant reading it in a lookup that opens a tab (even if it edits it later), 'attached' is a message or the editor hand-off attaching it, 'mentioned' is a mention in an earlier sent message of this session (a mention opens its tab once its message is sent). Known for the current session only: after a reload an earlier mention reads as 'attached', because both reach the thread as a workflow attachment. A node or group pick with 'mentioned' is the two-step journey",
 				),
 		}),
 	},
