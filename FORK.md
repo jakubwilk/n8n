@@ -29,9 +29,37 @@ Remote `upstream` = `https://github.com/n8n-io/n8n.git` (dodaj go, jeśli go nie
 |---|---|---|
 | gałąź funkcji → `dev` | **Squash and merge** | czysta historia własnych zmian |
 | tag upstream (`upstream/n8n-X.Y.Z`) → `dev` | **Create a merge commit** | squash zgubiłby historię upstream. Przy następnych aktualizacjach git porównywałby wszystko od starego wydania i konfliktów byłoby coraz więcej |
-| `dev` → `build` | **Squash and merge** | jeden commit na wydanie produkcyjne |
+| `dev` → `build` | **Create a merge commit** | squash tworzy na `build` commit, którego `dev` nie ma. Merge-base zostaje na starym wydaniu i każdy kolejny PR `dev` → `build` ma konflikty (wersje w `package.json`, `CHANGELOG.md`) |
 
-Przed PR `dev` → `build` gałąź `build` musi być wciągnięta do `dev`. Jeśli GitHub pokaże konflikt w PR, użyj **Resolve conflicts** i zostaw wersję z `dev`, bo `dev` zawiera wszystko, co ma `build`.
+Przy merge commit nic nie trzeba wciągać z `build` do `dev`. Kolejne PR-y `dev` → `build` są bez konfliktów, dopóki nikt nie zmienia `build` inaczej niż PR-em z `dev`. Historia wydań produkcyjnych, jeden wpis na wydanie:
+
+```bash
+git log --first-parent --oneline origin/build
+```
+
+Ruleset `build: tylko merge commit` w repozytorium blokuje squash w PR-ach do `build`.
+
+### PR `dev` → `build` ma konflikt
+
+Zdarza się, gdy na `build` trafił squash albo inny commit spoza `dev`. Najpierw sprawdź, że pliki na `build` są dokładnie takie jak w którymś commicie `dev` (czyli `build` nie ma własnych zmian):
+
+```bash
+git fetch origin
+git log origin/dev --format='%h %T' | grep "$(git rev-parse 'origin/build^{tree}')"
+#   wynik = commit dev z identycznymi plikami -> można bezpiecznie kontynuować
+#   brak wyniku = build ma coś, czego nie ma dev -> nie kontynuuj, wyjaśnij to najpierw
+```
+
+Jeśli jest wynik, zapisz historię `build` w `dev` bez zmiany plików:
+
+```bash
+git checkout -b chore/align-build-history origin/dev
+git merge -s ours origin/build -m "chore: record build history in dev (no file changes)"
+git diff origin/dev --stat   # musi być pusto
+git push -u origin chore/align-build-history
+```
+
+PR do `dev` scal przez **Create a merge commit** (squash nic nie naprawi). Potem PR `dev` → `build` jest bez konfliktów.
 
 ## Aktualizacja n8n do nowego stabilnego wydania
 
