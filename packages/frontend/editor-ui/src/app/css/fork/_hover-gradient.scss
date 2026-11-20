@@ -51,7 +51,9 @@
 // Element Plus draws the border on `<input class="el-input__inner">`, which has no
 // `::after`. The wrapper `div.el-input` has the same size, so the ring goes there.
 // A select: on hover and while its list is open (`.is-focus`). Any input: on focus.
-.el-select .el-input:not(.is-disabled):hover,
+// The hover is on the whole select: in a multi-select the tags and the search input
+// lie over `.el-input` as a sibling, so `.el-input:hover` would end there.
+.el-select:hover .el-input:not(.is-disabled),
 .el-select .el-input.is-focus,
 .el-input:not(.is-disabled):focus-within {
 	.el-input__inner {
@@ -67,4 +69,10 @@
 .el-select .el-input.is-focus,
 .el-input:not(.is-disabled):focus-within {
 	--focus--outline-color: var(--background--brand);
+}
+
+// The filter panel of the lists scrolls with `overflow: hidden`, and its fields fill
+// the full width. The padding gives room to the focus outline on all sides.
+[data-test-id='resources-list-filters-dropdown'] {
+	padding: calc(var(--focus--border-width) + var(--spacing--5xs));
 }
