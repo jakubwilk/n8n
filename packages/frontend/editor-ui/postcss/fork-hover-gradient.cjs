@@ -8,7 +8,7 @@
  * - on hover, when a rule changes a border on `:hover`,
  * - on the focus of an input field, when a rule sets the focus border of the
  *   field (`--input--border-color--focus`, `--input--border--shadow--focus`).
- *   The focus glow (`box-shadow`) and the focus `outline` stay,
+ *   The focus `outline` stays and uses the static brand pink,
  * - while a select is open (`[aria-expanded='true']`).
  *
  * - A `border` color: a `::after` ring takes the border widths of its element,
@@ -335,15 +335,24 @@ const forkHoverGradient = (options = {}) => {
 				for (const pseudo of /** @type {const} */ (['::after', '::before'])) {
 					const parts = ringParts[pseudo];
 					if (!parts.length) continue;
+					/** @type {Array<{prop: string; value: string}>} */
+					const hostDecls = [];
 					if (kind === 'border') {
 						// The ring replaces the color of a real border
-						insert(parts, [{ prop: 'border-color', value: 'transparent' }]);
+						hostDecls.push({ prop: 'border-color', value: 'transparent' });
 					} else if (state === 'focus') {
-						// Only the border line goes. The focus glow and the outline stay.
-						insert(parts, [
-							{ prop: `--${family}--border--shadow--focus`, value: '0 0 0 0 transparent' },
-						]);
+						// The ring replaces the border line drawn with a shadow
+						hostDecls.push({
+							prop: `--${family}--border--shadow--focus`,
+							value: '0 0 0 0 transparent',
+						});
 					}
+					if (state === 'focus') {
+						// The focus outline uses the static brand pink. The focus glow of a
+						// field (`--input--shadow--focus`) is transparent in all components.
+						hostDecls.push({ prop: '--focus--outline-color', value: 'var(--background--brand)' });
+					}
+					if (hostDecls.length) insert(parts, hostDecls);
 					insert(
 						parts.map((part) => `${part}${pseudo}`),
 						ringDeclarations(ring, kind),

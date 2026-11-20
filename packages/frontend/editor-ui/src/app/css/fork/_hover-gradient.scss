@@ -51,7 +51,6 @@
 // Element Plus draws the border on `<input class="el-input__inner">`, which has no
 // `::after`. The wrapper `div.el-input` has the same size, so the ring goes there.
 // A select: on hover and while its list is open (`.is-focus`). Any input: on focus.
-// The focus outline of the input stays.
 .el-select .el-input:not(.is-disabled):hover,
 .el-select .el-input.is-focus,
 .el-input:not(.is-disabled):focus-within {
@@ -62,4 +61,10 @@
 	&::after {
 		@include ring(var(--input--radius, var(--radius)));
 	}
+}
+
+// While a select is open or an input has focus, the focus outline is static brand pink
+.el-select .el-input.is-focus,
+.el-input:not(.is-disabled):focus-within {
+	--focus--outline-color: var(--background--brand);
 }
