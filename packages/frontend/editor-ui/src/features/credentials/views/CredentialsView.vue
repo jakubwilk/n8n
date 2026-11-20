@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import CredentialCard from '../components/CredentialCard.vue';
+import WorkflowFilterDropdown from '../components/WorkflowFilterDropdown.vue';
+import {
+	toStringArray,
+	useCredentialWorkflowFilter,
+} from '../composables/useCredentialWorkflowFilter';
 import EmptySharedSectionActionBox from '@/features/core/folders/components/EmptySharedSectionActionBox.vue';
 import ResourcesListLayout from '@/app/components/layouts/ResourcesListLayout.vue';
 import ResourcesListEmptyState from '@/app/components/layouts/ResourcesListEmptyState.vue';
@@ -61,6 +66,7 @@ type Filters = BaseFilters & {
 	type?: string[];
 	setupNeeded?: boolean;
 	externalSecretsStore?: string;
+	workflows?: string[];
 };
 const updateFilter = (state: Filters) => {
 	void router.replace({ query: pickBy(state) as LocationQueryRaw });
@@ -76,8 +82,17 @@ const filters = ref<Filters>({
 	...(route.query.externalSecretsStore
 		? { externalSecretsStore: route.query.externalSecretsStore.toString() }
 		: {}),
+	// One value in the URL comes back as a string, not as an array
+	...(route.query.workflows ? { workflows: toStringArray(route.query.workflows) } : {}),
 } as Filters);
 const loading = ref(false);
+
+const routeProjectId = computed(() => {
+	const projectId = route.params?.projectId;
+	return typeof projectId === 'string' && projectId ? projectId : undefined;
+});
+const selectedWorkflowIds = computed(() => filters.value.workflows ?? []);
+const { usedCredentialIds } = useCredentialWorkflowFilter(selectedWorkflowIds);
 
 const needsSetup = (credential: ICredentialsResponse): boolean => {
 	// Private (resolvable) credentials store their connection data per-user via a
@@ -187,6 +202,11 @@ const onFilter = (resource: Resource, newFilters: BaseFilters, matches: boolean)
 
 	if (filtersToApply.setupNeeded) {
 		matches = matches && resource.needsSetup;
+	}
+
+	// A credential matches when any selected workflow uses it
+	if (filtersToApply.workflows && filtersToApply.workflows.length > 0) {
+		matches = matches && usedCredentialIds.value.has(resource.id);
 	}
 
 	return matches;
@@ -360,6 +380,21 @@ onMounted(() => {
 						:label="credentialType.displayName"
 					/>
 				</N8nSelect>
+			</div>
+			<div class="mb-s">
+				<N8nInputLabel
+					:label="i18n.baseText('credentials.filters.workflows')"
+					:bold="false"
+					size="small"
+					color="text-base"
+					class="mb-3xs"
+				/>
+				<WorkflowFilterDropdown
+					:model-value="filters.workflows ?? []"
+					:project-id="routeProjectId"
+					:class="$style['type-input']"
+					@update:model-value="setKeyValue('workflows', $event)"
+				/>
 			</div>
 			<div class="mb-s">
 				<N8nInputLabel
