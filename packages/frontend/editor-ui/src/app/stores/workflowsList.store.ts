@@ -17,6 +17,8 @@ export type WorkflowListFilters = {
 	active?: boolean;
 	isArchived?: boolean;
 	parentFolderId?: string;
+	/** The backend adds the subfolders of each listed folder. */
+	parentFolderIds?: string[];
 	availableInMCP?: boolean;
 	triggerNodeTypes?: string[];
 	executionBlockedBy?: WorkflowExecutionBlockCause[];

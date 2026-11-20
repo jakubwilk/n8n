@@ -288,6 +288,49 @@ describe('WorkflowsView', () => {
 			);
 		});
 
+		it('should filter by the folders in the query and not fetch folder rows', async () => {
+			await router.replace({ path: '/project-1', query: { folders: 'folder-a,folder-b' } });
+			settingsStore.isFoldersFeatureEnabled = true;
+			vi.spyOn(projectPages, 'isOverviewSubPage', 'get').mockReturnValue(false);
+			vi.spyOn(projectPages, 'isSharedSubPage', 'get').mockReturnValue(false);
+
+			renderComponent({ pinia });
+			await waitAllPromises();
+
+			expect(workflowsListStore.fetchWorkflowsPage).toHaveBeenCalledWith(
+				'project-1',
+				expect.any(Number),
+				expect.any(Number),
+				expect.any(String),
+				expect.objectContaining({
+					parentFolderId: undefined,
+					parentFolderIds: ['folder-a', 'folder-b'],
+				}),
+				false, // No folder rows while the folder filter is set
+				expect.any(Boolean),
+			);
+		});
+
+		it('should ignore the folders query on the overview page', async () => {
+			await router.replace({ query: { folders: 'folder-a' } });
+			settingsStore.isFoldersFeatureEnabled = true;
+			vi.spyOn(projectPages, 'isOverviewSubPage', 'get').mockReturnValue(true);
+			vi.spyOn(projectPages, 'isSharedSubPage', 'get').mockReturnValue(false);
+
+			renderComponent({ pinia });
+			await waitAllPromises();
+
+			expect(workflowsListStore.fetchWorkflowsPage).toHaveBeenCalledWith(
+				expect.any(String),
+				expect.any(Number),
+				expect.any(Number),
+				expect.any(String),
+				expect.objectContaining({ parentFolderIds: undefined }),
+				false,
+				expect.any(Boolean),
+			);
+		});
+
 		it('should scope search to current folder when inside a folder', async () => {
 			await router.replace({ path: '/project-1/folders/folder-1', query: { search: 'test' } });
 

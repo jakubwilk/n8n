@@ -61,6 +61,7 @@ import * as utils from '@/utils';
 import { getWorkflowProjectDetailsSafe } from '@/workflows/utils';
 
 import { CollaborationService } from '../collaboration/collaboration.service';
+import { expandFolderFilterToSubtrees } from './folder-filter';
 import { WorkflowPublicationStatusService } from './publication/workflow-publication-status.service';
 import { WorkflowCreationService } from './workflow-creation.service';
 import { createWorkflowEntityFromPayload } from './workflow-entity-mapper';
@@ -141,7 +142,7 @@ export class WorkflowsController {
 
 			const { workflows: data, count } = await this.workflowService.getMany(
 				req.user,
-				req.listQueryOptions,
+				await expandFolderFilterToSubtrees(req.listQueryOptions),
 				{
 					includeScopes: !!req.query.includeScopes,
 					includeFolders: userCanListProjectFolders && !!req.query.includeFolders,
