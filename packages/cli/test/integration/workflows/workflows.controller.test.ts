@@ -1809,6 +1809,47 @@ describe('GET /workflows', () => {
 			expect(response2.body.data[0].id).toBe(workflow2.id);
 		});
 
+		test('should filter workflows by parentFolderIds and their subfolders', async () => {
+			const pp = await projectRepository.getPersonalProjectForUserOrFail(owner.id);
+
+			const folderA = await createFolder(pp, { name: 'Folder A' });
+			const folderAChild = await createFolder(pp, { name: 'Folder A child', parentFolder: folderA });
+			const folderAGrandchild = await createFolder(pp, {
+				name: 'Folder A grandchild',
+				parentFolder: folderAChild,
+			});
+			const folderB = await createFolder(pp, { name: 'Folder B' });
+			const folderC = await createFolder(pp, { name: 'Folder C' });
+
+			const inA = await createWorkflow({ name: 'In A', parentFolder: folderA }, owner);
+			const inAGrandchild = await createWorkflow(
+				{ name: 'In A grandchild', parentFolder: folderAGrandchild },
+				owner,
+			);
+			const inB = await createWorkflow({ name: 'In B', parentFolder: folderB }, owner);
+			await createWorkflow({ name: 'In C', parentFolder: folderC }, owner);
+			await createWorkflow({ name: 'In root' }, owner);
+
+			const response = await authOwnerAgent
+				.get('/workflows')
+				.query(`filter={ "parentFolderIds": ["${folderA.id}", "${folderB.id}"] }`)
+				.expect(200);
+
+			const ids = response.body.data.map((workflow: { id: string }) => workflow.id).sort();
+			expect(ids).toEqual([inA.id, inAGrandchild.id, inB.id].sort());
+		});
+
+		test('should return no workflows when parentFolderIds has only unknown folders', async () => {
+			await createWorkflow({ name: 'In root' }, owner);
+
+			const response = await authOwnerAgent
+				.get('/workflows')
+				.query('filter={ "parentFolderIds": ["non-existing-folder-id"] }')
+				.expect(200);
+
+			expect(response.body.data).toHaveLength(0);
+		});
+
 		test('should filter workflows by nodeTypes', async () => {
 			const httpWorkflow = await createWorkflow(
 				{
