@@ -52,6 +52,15 @@ export class WorkflowFilter extends BaseFilter {
 	@Expose()
 	parentFolderId?: string;
 
+	/** Folder filter: the service adds the subfolders of each listed folder. */
+	@IsArray()
+	@ArrayMaxSize(100)
+	@ArrayUnique()
+	@IsString({ each: true })
+	@IsOptional()
+	@Expose()
+	parentFolderIds?: string[];
+
 	@IsBoolean()
 	@IsOptional()
 	@Expose()

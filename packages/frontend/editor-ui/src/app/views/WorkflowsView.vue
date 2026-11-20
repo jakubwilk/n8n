@@ -13,6 +13,7 @@ import ResourcesListLayout from '@/app/components/layouts/ResourcesListLayout.vu
 import ProjectHeader from '@/features/collaboration/projects/components/ProjectHeader.vue';
 import WorkflowCard from '@/app/components/WorkflowCard.vue';
 import WorkflowTagsDropdown from '@/features/shared/tags/components/WorkflowTagsDropdown.vue';
+import FolderFilterDropdown from '@/features/core/folders/components/FolderFilterDropdown.vue';
 import { useAutoScrollOnDrag } from '@/app/composables/useAutoScrollOnDrag';
 import { getDebounceTime, useDebounce } from '@n8n/composables/useDebounce';
 import { useDocumentTitle } from '@/app/composables/useDocumentTitle';
@@ -133,6 +134,7 @@ interface Filters extends BaseFilters {
 	status: string | boolean;
 	showArchived: boolean;
 	tags: string[];
+	folders: string[];
 	executionBlockedBy: WorkflowExecutionBlockCause[];
 }
 
@@ -211,6 +213,7 @@ const filters = ref<Filters>({
 	status: StatusFilter.ALL,
 	showArchived: false,
 	tags: [],
+	folders: [],
 	executionBlockedBy: [],
 });
 
@@ -596,12 +599,18 @@ const showWontExecuteCallout = computed(
 		isWontExecuteFilterActive.value && !loading.value && workflowsListStore.totalWorkflowCount > 0,
 );
 
+// The folder filter exists only on project pages, where folders are shown.
+const isFolderFilterActive = computed(
+	() => showFolders.value && filters.value.folders.length > 0,
+);
+
 const hasFilters = computed(() => {
 	return !!(
 		filters.value.search ||
 		filters.value.status !== StatusFilter.ALL ||
 		filters.value.showArchived ||
 		filters.value.tags.length ||
+		isFolderFilterActive.value ||
 		isWontExecuteFilterActive.value
 	);
 });
@@ -923,7 +932,11 @@ const fetchWorkflows = async () => {
 	// Only fetch folders if showFolders is enabled and there are not tags or active filter applied.
 	// The folder query ignores these filters, so folders would stay in the list and in the count.
 	const fetchFolders =
-		showFolders.value && !tags.length && activeFilter === undefined && !executionBlockedBy;
+		showFolders.value &&
+		!tags.length &&
+		activeFilter === undefined &&
+		!executionBlockedBy &&
+		!isFolderFilterActive.value;
 
 	try {
 		const fetchedResources = await workflowsListStore.fetchWorkflowsPage(
@@ -937,7 +950,9 @@ const fetchWorkflows = async () => {
 				isArchived: archivedFilter,
 				tags: tags.length ? tags : undefined,
 				executionBlockedBy,
-				parentFolderId: getParentFolderId(parentFolder),
+				// The folder filter replaces the folder of the route
+				parentFolderId: isFolderFilterActive.value ? undefined : getParentFolderId(parentFolder),
+				parentFolderIds: isFolderFilterActive.value ? filters.value.folders : undefined,
 			},
 			fetchFolders,
 			projectPages.isSharedSubPage,
@@ -978,6 +993,7 @@ const fetchWorkflows = async () => {
 			projectPages.isSharedSubPage ||
 			filters.value.search !== '' ||
 			filters.value.tags.length > 0 ||
+			isFolderFilterActive.value ||
 			isWontExecuteFilterActive.value;
 
 		return fetchedResources;
@@ -1100,6 +1116,12 @@ const saveFiltersOnQueryString = async () => {
 		delete currentQuery.tags;
 	}
 
+	if (filters.value.folders.length) {
+		currentQuery.folders = filters.value.folders.join(',');
+	} else {
+		delete currentQuery.folders;
+	}
+
 	if (filters.value.executionBlockedBy.length) {
 		currentQuery.executionBlockedBy = filters.value.executionBlockedBy.join(',');
 	} else {
@@ -1120,7 +1142,7 @@ const saveFiltersOnQueryString = async () => {
 const setFiltersFromQueryString = async () => {
 	const { fullPath } = route;
 	const newQuery: LocationQueryRaw = { ...route.query };
-	const { tags, status, search, homeProject, sort, showArchived, executionBlockedBy } =
+	const { tags, folders, status, search, homeProject, sort, showArchived, executionBlockedBy } =
 		route.query ?? {};
 
 	// Helper to check if string value is not empty
@@ -1164,6 +1186,15 @@ const setFiltersFromQueryString = async () => {
 	} else {
 		delete newQuery.tags;
 	}
+
+	// Handle folders. The backend returns no workflows for an unknown folder id.
+	const folderIds = isValidString(folders) ? folders.split(',').filter(Boolean) : [];
+	if (folderIds.length) {
+		newQuery.folders = folderIds.join(',');
+	} else {
+		delete newQuery.folders;
+	}
+	filters.value.folders = folderIds;
 
 	const validCauses =
 		typeAvailabilityPoliciesStore.isEnabled && isValidString(executionBlockedBy)
@@ -2570,6 +2601,20 @@ const onNameSubmit = async (name: string) => {
 					:model-value="filters.tags"
 					:create-enabled="false"
 					@update:model-value="setKeyValue('tags', $event)"
+				/>
+			</div>
+			<div v-if="showFolders && route.params?.projectId" class="mb-s">
+				<N8nInputLabel
+					:label="i18n.baseText('workflows.filters.folders')"
+					:bold="false"
+					size="small"
+					color="text-base"
+					class="mb-3xs"
+				/>
+				<FolderFilterDropdown
+					:model-value="filters.folders"
+					:project-id="String(route.params.projectId)"
+					@update:model-value="setKeyValue('folders', $event)"
 				/>
 			</div>
 			<div class="mb-s">
