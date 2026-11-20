@@ -19,6 +19,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import { flushPromises } from '@vue/test-utils';
 import { CREDENTIAL_EMPTY_VALUE } from 'n8n-workflow';
 import * as projectsApi from '@/features/collaboration/projects/projects.api';
+import * as workflowDependenciesApi from '@/app/api/workflow-dependencies';
 
 const mockAuthorize = vi.fn();
 const mockIsOAuthCredentialType = vi.fn(() => true);
@@ -319,6 +320,48 @@ describe('CredentialsView', () => {
 			];
 			const { getAllByTestId } = renderComponent();
 			expect(getAllByTestId('resources-list-item').length).toBe(1);
+		});
+
+		it('should filter by the workflows that use the credential', async () => {
+			vi.mocked(workflowDependenciesApi.getResourceDependencies).mockResolvedValueOnce({
+				'wf-1': {
+					dependencies: [{ type: 'credentialId', id: 'cred-used', name: 'Used' }],
+					inaccessibleCount: 0,
+				},
+			});
+			// One value in the URL comes back as a string, not as an array
+			await router.push({ name: VIEWS.CREDENTIALS, query: { workflows: 'wf-1' } });
+			const credentialsStore = mockedStore(useCredentialsStore);
+			credentialsStore.allCredentials = [
+				{
+					id: 'cred-used',
+					name: 'Used',
+					type: 'test',
+					createdAt: '2021-05-05T00:00:00Z',
+					updatedAt: '2021-05-05T00:00:00Z',
+					scopes: ['credential:update'],
+					isManaged: false,
+				},
+				{
+					id: 'cred-unused',
+					name: 'Unused',
+					type: 'test',
+					createdAt: '2021-05-05T00:00:00Z',
+					updatedAt: '2021-05-05T00:00:00Z',
+					scopes: ['credential:update'],
+					isManaged: false,
+				},
+			];
+			const { getAllByTestId } = renderComponent();
+
+			await flushPromises();
+			await waitFor(() => expect(getAllByTestId('resources-list-item').length).toBe(1));
+			expect(getAllByTestId('resources-list-item')[0]).toHaveTextContent('Used');
+			expect(workflowDependenciesApi.getResourceDependencies).toHaveBeenCalledWith(
+				expect.anything(),
+				['wf-1'],
+				'workflow',
+			);
 		});
 
 		it('should filter by setupNeeded', async () => {
