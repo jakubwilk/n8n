@@ -354,6 +354,7 @@ describe('CredentialsView', () => {
 			];
 			const { getAllByTestId } = renderComponent();
 
+			await flushPromises();
 			await waitFor(() => expect(getAllByTestId('resources-list-item').length).toBe(1));
 			expect(getAllByTestId('resources-list-item')[0]).toHaveTextContent('Used');
 			expect(workflowDependenciesApi.getResourceDependencies).toHaveBeenCalledWith(
