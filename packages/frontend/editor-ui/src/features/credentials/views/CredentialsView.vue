@@ -205,7 +205,7 @@ const onFilter = (resource: Resource, newFilters: BaseFilters, matches: boolean)
 	}
 
 	// A credential matches when any selected workflow uses it
-	if (filtersToApply.workflows && filtersToApply.workflows.length > 0) {
+	if (filtersToApply.workflows?.length) {
 		matches = matches && usedCredentialIds.value.has(resource.id);
 	}
 
