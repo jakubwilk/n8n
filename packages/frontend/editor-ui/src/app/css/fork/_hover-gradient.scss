@@ -1,0 +1,25 @@
+// Fork-only (jakubwilk/n8n): animation for the gradient border on hover.
+// The PostCSS plugin `postcss/fork-hover-gradient.cjs` adds the ring to each
+// hover rule that changes a border. The ring reads the values below.
+
+// Each ring turns its own angle, so only the element under the pointer animates
+@property --fork-hover-angle {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 0deg;
+}
+
+@keyframes fork-hover-turn {
+	to {
+		--fork-hover-angle: 360deg;
+	}
+}
+
+:root {
+	// A variable, because CSS modules rename a keyframes name written in a `.vue` file
+	--fork-hover-animation: fork-hover-turn 3s linear infinite;
+
+	@media (prefers-reduced-motion: reduce) {
+		--fork-hover-animation: none;
+	}
+}
