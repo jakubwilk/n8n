@@ -1,8 +1,9 @@
-// Fork-only (jakubwilk/n8n): animation for the gradient border on hover.
-// The PostCSS plugin `postcss/fork-hover-gradient.cjs` adds the ring to each
-// hover rule that changes a border. The ring reads the values below.
+// Fork-only (jakubwilk/n8n): animated gradient border on hover and on focus.
+// The PostCSS plugin `postcss/fork-hover-gradient.cjs` adds the ring to each rule
+// that changes a border on hover, or the border of an input field on focus. This
+// file holds the animation and the rings for Element Plus inputs and selects.
 
-// Each ring turns its own angle, so only the element under the pointer animates
+// Each ring turns its own angle, so only the active element animates
 @property --fork-hover-angle {
 	syntax: '<angle>';
 	inherits: false;
@@ -21,5 +22,44 @@
 
 	@media (prefers-reduced-motion: reduce) {
 		--fork-hover-animation: none;
+	}
+}
+
+// Keep in step with GRADIENT and ringDeclarations() in the plugin
+@mixin ring($radius) {
+	content: '';
+	position: absolute;
+	inset: 0;
+	box-sizing: border-box;
+	border-radius: $radius;
+	border: 1px solid transparent;
+	background: conic-gradient(
+			from var(--fork-hover-angle),
+			var(--background--brand),
+			var(--border-color--strong),
+			var(--background--brand)
+		)
+		border-box;
+	mask:
+		linear-gradient(#000 0 0) padding-box,
+		linear-gradient(#000 0 0) border-box;
+	mask-composite: exclude;
+	animation: var(--fork-hover-animation);
+	pointer-events: none;
+}
+
+// Element Plus draws the border on `<input class="el-input__inner">`, which has no
+// `::after`. The wrapper `div.el-input` has the same size, so the ring goes there.
+// A select: on hover and while its list is open (`.is-focus`). Any input: on focus.
+// The focus outline of the input stays.
+.el-select .el-input:not(.is-disabled):hover,
+.el-select .el-input.is-focus,
+.el-input:not(.is-disabled):focus-within {
+	.el-input__inner {
+		border-color: transparent;
+	}
+
+	&::after {
+		@include ring(var(--input--radius, var(--radius)));
 	}
 }
