@@ -65,6 +65,7 @@ export async function getProjectFolders(
 	filter?: {
 		excludeFolderIdAndDescendants?: string;
 		name?: string;
+		parentFolderId?: string;
 	},
 	select?: string[],
 ): Promise<{ data: ChangeLocationSearchResponseItem[]; count: number }> {
