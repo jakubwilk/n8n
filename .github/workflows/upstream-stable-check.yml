@@ -1,6 +1,9 @@
 # Raz dziennie sprawdza upstreamowy tag `stable` (n8n-io/n8n). Jeśli wskazuje wydanie
-# n8n@X.Y.Z, którego nie ma w gałęzi dev forka, zakłada issue z instrukcją.
-# Niczego nie merguje ani nie wypycha (aktualizacja według FORK.md).
+# n8n@X.Y.Z, którego nie ma w gałęzi dev forka:
+#   - tworzy gałąź upstream/n8n-X.Y.Z z merge commitem tagu i otwiera PR do dev,
+#   - przy konflikcie albo bez sekretu UPSTREAM_SYNC_TOKEN zakłada issue (procedura ręczna z FORK.md).
+# PR scala właściciel (Create a merge commit). Workflow niczego nie scala do dev ani build.
+# Job disable-upstream-workflows wyłącza workflowy upstream, które merge dodał do forka.
 # Plik trafia do forka jako: .github/workflows/upstream-stable-check.yml
 # Harmonogram działa tylko z gałęzi domyślnej repozytorium (musi nią być `dev`).
 
@@ -10,10 +13,13 @@ on:
   schedule:
     - cron: '23 6 * * *'
   workflow_dispatch:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/**'
 
 permissions:
   contents: read
-  issues: write
 
 concurrency:
   group: upstream-stable-check
@@ -21,11 +27,18 @@ concurrency:
 
 jobs:
   check:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
     env:
       GH_TOKEN: ${{ github.token }}
       UPSTREAM: https://github.com/n8n-io/n8n.git
+      # Push zmian w .github/workflows/ wymaga PAT z uprawnieniem Workflows (GITHUB_TOKEN go nie ma).
+      HAS_SYNC_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN != '' }}
     steps:
       - name: Find release pointed by upstream `stable`
         id: stable
@@ -43,6 +56,7 @@ jobs:
           [ -n "$TAG" ] || { echo "::error::Brak tagu n8n@X.Y.Z dla commita stable $SHA"; exit 1; }
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "branch=upstream/${TAG/n8n@/n8n-}" >> "$GITHUB_OUTPUT"
           echo "stable -> $TAG ($SHA)"
 
       - name: Check whether dev already contains it
@@ -58,10 +72,135 @@ jobs:
             echo "contained=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Open issue for new stable release
-        if: steps.dev.outputs.contained == 'false'
+      - name: Check existing branch and PR
+        id: existing
+        if: steps.dev.outputs.contained == 'false' && env.HAS_SYNC_TOKEN == 'true'
+        env:
+          BRANCH: ${{ steps.stable.outputs.branch }}
+        run: |
+          set -euo pipefail
+          # Każdy PR z tej gałęzi (także zamknięty) znaczy, że wydanie jest już obsłużone.
+          PR_URL="$(gh pr list -R "$GITHUB_REPOSITORY" --head "$BRANCH" --state all --json url --jq '.[0].url // ""')"
+          if [ -n "$PR_URL" ]; then
+            echo "PR dla ${BRANCH} już istnieje: ${PR_URL}"
+            echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          fi
+          if git ls-remote --exit-code --heads "https://github.com/${GITHUB_REPOSITORY}.git" "refs/heads/${BRANCH}" > /dev/null; then
+            echo "branch_exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "branch_exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout dev
+        if: steps.existing.outcome == 'success' && steps.existing.outputs.pr_url == '' && steps.existing.outputs.branch_exists == 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev
+          fetch-depth: 0
+          # Bez blobów: historia jest potrzebna do merge-base, treść plików dociąga się na żądanie.
+          filter: blob:none
+          token: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+          persist-credentials: true
+
+      - name: Merge release into branch
+        id: merge
+        if: steps.existing.outcome == 'success' && steps.existing.outputs.pr_url == '' && steps.existing.outputs.branch_exists == 'false'
         env:
           TAG: ${{ steps.stable.outputs.tag }}
+          BRANCH: ${{ steps.stable.outputs.branch }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git remote add upstream "$UPSTREAM"
+          git config remote.upstream.promisor true
+          git config remote.upstream.partialclonefilter blob:none
+          git fetch --no-tags --filter=blob:none upstream "+refs/tags/${TAG}:refs/tags/${TAG}"
+
+          git checkout -b "$BRANCH"
+          MSG="chore: merge ${TAG} (stable) into dev"
+          if ! git merge --no-ff --no-edit -m "$MSG" "refs/tags/${TAG}"; then
+            # Pliki własne forka zawsze zostają w wersji z dev.
+            for f in FORK.md CLAUDE.md .github/workflows/build-coolify-images.yml .github/workflows/upstream-stable-check.yml; do
+              if git diff --name-only --diff-filter=U | grep -qxF "$f"; then
+                git checkout --ours -- "$f"
+                git add -- "$f"
+                echo "Konflikt w pliku forka ${f}: zostaje wersja z dev."
+              fi
+            done
+            CONFLICTS="$(git diff --name-only --diff-filter=U)"
+            if [ -n "$CONFLICTS" ]; then
+              echo "::warning::Merge ${TAG} ma konflikty. PR nie powstanie, zakładam issue."
+              echo "$CONFLICTS"
+              git merge --abort
+              {
+                echo "conflicts<<EOF_CONFLICTS"
+                echo "$CONFLICTS"
+                echo "EOF_CONFLICTS"
+              } >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            git commit --no-edit
+          fi
+
+          NEW_WORKFLOWS="$(git diff --name-only --diff-filter=A HEAD^1 HEAD -- .github/workflows/)"
+          {
+            echo "new_workflows<<EOF_WORKFLOWS"
+            echo "$NEW_WORKFLOWS"
+            echo "EOF_WORKFLOWS"
+          } >> "$GITHUB_OUTPUT"
+
+          git push origin "$BRANCH"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open PR
+        id: pr
+        if: steps.existing.outputs.pr_url != '' || steps.existing.outputs.branch_exists == 'true' || steps.merge.outputs.pushed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+          TAG: ${{ steps.stable.outputs.tag }}
+          BRANCH: ${{ steps.stable.outputs.branch }}
+          EXISTING_PR: ${{ steps.existing.outputs.pr_url }}
+          NEW_WORKFLOWS: ${{ steps.merge.outputs.new_workflows }}
+        run: |
+          set -euo pipefail
+          if [ -n "$EXISTING_PR" ]; then
+            echo "handled=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -n "$NEW_WORKFLOWS" ]; then
+            WORKFLOWS_NOTE="Merge dodaje nowe workflowy upstream. Job \`disable-upstream-workflows\` wyłączy je po scaleniu:
+          $(echo "$NEW_WORKFLOWS" | sed 's/^/- `/; s/$/`/')"
+          else
+            WORKFLOWS_NOTE="Merge nie dodaje nowych workflowów w \`.github/workflows/\` (albo gałąź powstała we wcześniejszym przebiegu)."
+          fi
+          BODY="$(cat <<EOF
+          Upstreamowy tag \`stable\` wskazuje **${TAG}**. Ta gałąź to \`dev\` + merge tagu ${TAG}.
+
+          **Scal przez „Create a merge commit”** (nie squash), zgodnie z \`FORK.md\`.
+
+          ${WORKFLOWS_NOTE}
+
+          Po scaleniu:
+          - sprawdź w Actions, że aktywne są tylko \`Build Coolify images\` i \`Upstream stable check\`,
+          - PR \`dev\` → \`build\` (Create a merge commit) uruchamia build obrazów i wdrożenie na produkcję.
+
+          Notatki do wydania: https://github.com/n8n-io/n8n/releases/tag/${TAG}
+
+          PR utworzony automatycznie przez workflow \`Upstream stable check\`.
+          EOF
+          )"
+          PR_URL="$(gh pr create -R "$GITHUB_REPOSITORY" --base dev --head "$BRANCH" \
+            --title "chore: merge ${TAG} (stable) into dev" --body "$BODY")"
+          echo "Utworzono PR: ${PR_URL}"
+          echo "handled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Open issue for new stable release
+        if: ${{ !cancelled() && steps.dev.outputs.contained == 'false' && steps.pr.outputs.handled != 'true' }}
+        env:
+          TAG: ${{ steps.stable.outputs.tag }}
+          BRANCH: ${{ steps.stable.outputs.branch }}
+          CONFLICTS: ${{ steps.merge.outputs.conflicts }}
         run: |
           set -euo pipefail
           TITLE="Nowe stabilne wydanie n8n: ${TAG}"
@@ -70,14 +209,50 @@ jobs:
             echo "Issue dla ${TAG} już istnieje."
             exit 0
           fi
+          if [ -n "$CONFLICTS" ]; then
+            REASON="Automatyczny merge ma konflikty w plikach:
+          $(echo "$CONFLICTS" | sed 's/^/- `/; s/$/`/')"
+          elif [ "$HAS_SYNC_TOKEN" != "true" ]; then
+            REASON="Brak sekretu \`UPSTREAM_SYNC_TOKEN\`, więc workflow nie utworzył PR."
+          else
+            REASON="Automatyczne utworzenie PR nie powiodło się. Szczegóły w logu przebiegu: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          fi
           BODY="$(printf '%s\n' \
             "Upstreamowy tag \`stable\` wskazuje **${TAG}**, którego nie ma jeszcze w gałęzi \`dev\`." \
             "" \
-            "Aktualizacja według \`FORK.md\` (sekcja \"Aktualizacja n8n do nowego stabilnego wydania\"):" \
-            "1. gałąź \`upstream/${TAG/n8n@/n8n-}\` z \`origin/dev\` + \`git merge --no-ff ${TAG}\`," \
+            "$REASON" \
+            "" \
+            "Aktualizacja ręczna według \`FORK.md\` (sekcja \"Aktualizacja n8n do nowego stabilnego wydania\"):" \
+            "1. gałąź \`${BRANCH}\` z \`origin/dev\` + \`git merge --no-ff ${TAG}\`, rozwiązanie konfliktów," \
             "2. PR do \`dev\` scalany przez **Create a merge commit**," \
-            "3. wyłączenie nowych workflowów upstream," \
-            "4. PR \`dev\` -> \`build\` (squash) uruchamia build obrazów." \
+            "3. PR \`dev\` -> \`build\` (Create a merge commit) uruchamia build obrazów i wdrożenie." \
             "" \
             "Notatki do wydania: https://github.com/n8n-io/n8n/releases/tag/${TAG}")"
           gh issue create -R "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
+
+  # Workflowy upstream dodane przez merge są w forku domyślnie włączone. Aktywne zostają tylko workflowy forka.
+  disable-upstream-workflows:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Disable upstream workflows
+        run: |
+          set -euo pipefail
+          TO_DISABLE="$(gh workflow list -R "$GITHUB_REPOSITORY" --all --limit 500 --json id,path,state --jq '
+            .[]
+            | select(.state == "active")
+            | select(.path | startswith(".github/workflows/"))
+            | select((.path | endswith("/build-coolify-images.yml") or endswith("/upstream-stable-check.yml")) | not)
+            | "\(.id) \(.path)"')"
+          if [ -z "$TO_DISABLE" ]; then
+            echo "Brak aktywnych workflowów upstream."
+            exit 0
+          fi
+          echo "$TO_DISABLE" | while read -r ID WF_PATH; do
+            gh workflow disable "$ID" -R "$GITHUB_REPOSITORY"
+            echo "Wyłączono: ${WF_PATH}"
+          done
