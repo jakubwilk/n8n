@@ -124,6 +124,19 @@ Po scaleniu:
 
 Własne zmiany trzymaj możliwie małe i odseparowane od kodu upstream, bo każda aktualizacja n8n może dać w nich konflikt.
 
+## Modyfikacje względem n8n
+
+To oprogramowanie jest zmodyfikowaną wersją n8n. Licencja Sustainable Use License (`LICENSE.md`) wymaga wyraźnej informacji o modyfikacjach w zmienionych kopiach. Ta lista jest tą informacją. Dopisz tu każdą nową własną zmianę w kodzie n8n.
+
+| Zmiana | Pliki |
+|---|---|
+| Długie nazwy folderów i workflowów zawijają się w filtrach (dropdown) | `features/core/folders/components/FolderFilterDropdown.vue`, `features/credentials/components/WorkflowFilterDropdown.vue` |
+| Sekcja „Folders” w lewym panelu: lista folderów głównych z projektu Personal. Widoczna tylko z licencją folderów (`feat:folders`) i przy rozwiniętym panelu | nowy `features/core/folders/components/PersonalFoldersNavigation.vue`, wpięcie w `features/collaboration/projects/components/ProjectNavigation.vue` (komentarz `Fork:`), filtr `parentFolderId` w `features/core/folders/folders.api.ts`, klucz `projects.menu.folders` w `@n8n/i18n/src/locales/en.json` |
+
+Ścieżki `features/...` są względem `packages/frontend/editor-ui/src/`. Przy konflikcie w tych plikach podczas merge tagu upstream zachowaj zmianę z listy.
+
+Nie zmieniamy plików `.ee.` (licencja `LICENSE_EE.md`) i nie obchodzimy sprawdzania licencji.
+
 ## Build obrazów
 
 - Workflow `.github/workflows/build-coolify-images.yml` uruchamia się przy pushu na `build` (czyli po scaleniu PR `dev` → `build`) albo ręcznie (`workflow_dispatch`).
