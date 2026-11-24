@@ -42,6 +42,8 @@ import {
 	type RecentChatItem,
 } from '@/features/agents/n8nChatPage/mergeRecentChats';
 import RecentChatIcon from '@/features/agents/n8nChatPage/components/RecentChatIcon.vue';
+// Fork: personal root folders section
+import PersonalFoldersNavigation from '@/features/core/folders/components/PersonalFoldersNavigation.vue';
 
 import { hasPermission } from '@/app/utils/rbac/permissions';
 
@@ -419,6 +421,8 @@ onBeforeUnmount(() => {
 				</div>
 			</template>
 		</div>
+		<!-- Fork: personal root folders section -->
+		<PersonalFoldersNavigation :collapsed="props.collapsed" />
 		<template v-if="projectsStore.isTeamProjectFeatureEnabled && displayProjects.length > 0">
 			<button
 				v-if="!props.collapsed"
