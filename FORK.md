@@ -63,9 +63,24 @@ PR do `dev` scal przez **Create a merge commit** (squash nic nie naprawi). Potem
 
 ## Aktualizacja n8n do nowego stabilnego wydania
 
-Workflow `.github/workflows/upstream-stable-check.yml` raz dziennie sprawdza upstreamowy tag `stable`. Jeśli wskazuje wydanie, którego nie ma w `dev`, zakłada issue „Nowe stabilne wydanie n8n: n8n@X.Y.Z”. Sam niczego nie merguje.
+Workflow `.github/workflows/upstream-stable-check.yml` raz dziennie sprawdza upstreamowy tag `stable`. Jeśli wskazuje wydanie, którego nie ma w `dev`:
 
-Procedura (właściciel albo Claude na prośbę właściciela):
+1. Tworzy gałąź `upstream/n8n-X.Y.Z` z `dev` i robi na niej `git merge --no-ff n8n@X.Y.Z`. Konflikty w plikach własnych forka (`FORK.md`, `CLAUDE.md`, `.github/workflows/build-coolify-images.yml`, `.github/workflows/upstream-stable-check.yml`) rozwiązuje wersją z `dev`.
+2. Otwiera PR do `dev` z tytułem `chore: merge n8n@X.Y.Z (stable) into dev`.
+3. Właściciel przegląda PR i scala go przez **Create a merge commit**. Workflow nie scala niczego sam.
+
+Jeśli dla gałęzi istnieje już jakikolwiek PR (także zamknięty), workflow nic nie robi. Zamknięcie PR bez scalania oznacza więc „pomiń to wydanie”.
+
+Workflow zakłada issue „Nowe stabilne wydanie n8n: n8n@X.Y.Z” zamiast PR, gdy:
+- merge ma konflikty w innych plikach (lista plików jest w issue),
+- brakuje sekretu `UPSTREAM_SYNC_TOKEN`,
+- utworzenie PR się nie powiodło.
+
+Wtedy użyj procedury ręcznej poniżej.
+
+**Sekret `UPSTREAM_SYNC_TOKEN`:** fine-grained PAT tylko na `jakubwilk/n8n` z uprawnieniami Contents, Pull requests i Workflows (Read and write). `GITHUB_TOKEN` nie wystarczy, bo GitHub odrzuca push zmian w `.github/workflows/` bez uprawnienia Workflows. Po wygaśnięciu tokenu workflow wraca do zakładania issue.
+
+Procedura ręczna (właściciel albo Claude na prośbę właściciela):
 
 ```bash
 # 1. Pobierz tagi upstream. --force, bo tag `stable` jest przesuwany przez upstream.
@@ -92,8 +107,8 @@ git push -u origin upstream/n8n-X.Y.Z
 ```
 
 Po scaleniu:
-- Zamknij issue z kroku automatycznego.
-- **Wyłącz nowe workflowy upstream.** Merge tagu może dodać nowe pliki w `.github/workflows/`, które w forku będą domyślnie włączone (PowerShell):
+- Zamknij issue, jeśli powstało.
+- **Nowe workflowy upstream wyłączają się automatycznie.** Merge tagu może dodać nowe pliki w `.github/workflows/`, które w forku są domyślnie włączone. Job `disable-upstream-workflows` w `Upstream stable check` wyłącza je po każdym pushu na `dev`, który zmienia `.github/workflows/`, oraz codziennie. Workflow upstream z wyzwalaczem `push` bez filtra gałęzi może raz wystartować na samym pushu merge, zanim zostanie wyłączony. Ręczna alternatywa (PowerShell):
   ```powershell
   (gh workflow list -R jakubwilk/n8n --all --limit 300 --json id,name,path,state | ConvertFrom-Json) |
     Where-Object { $_.state -eq 'active' -and $_.path -notmatch 'build-coolify-images|upstream-stable-check' } |
