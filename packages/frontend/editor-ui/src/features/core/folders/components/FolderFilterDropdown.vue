@@ -59,6 +59,7 @@ watch(
 		filterable
 		:loading="loading"
 		:placeholder="i18n.baseText('workflows.filters.folders.placeholder')"
+		:class="$style.wrapTags"
 		data-test-id="folder-filter-dropdown"
 		data-attr="folder-filter-dropdown"
 		@update:model-value="emit('update:modelValue', $event)"
@@ -72,3 +73,24 @@ watch(
 		/>
 	</N8nSelect>
 </template>
+
+<style lang="scss" module>
+/* Long folder paths wrap inside the chip, so the full name stays visible. */
+.wrapTags {
+	:global(.el-select__tags .el-tag) {
+		height: auto;
+		max-width: 100%;
+		white-space: normal;
+		text-align: left;
+	}
+
+	:global(.el-select__tags-text) {
+		/* Makes the inline max-width from Element Plus apply */
+		display: inline-block;
+		white-space: normal;
+		/* Breaks names that have no spaces */
+		overflow-wrap: anywhere;
+		line-height: var(--line-height--md);
+	}
+}
+</style>
