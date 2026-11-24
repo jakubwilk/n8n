@@ -8,10 +8,7 @@ import type { ActivationErrorsService } from '@/activation-errors.service';
 import { BadRequestError } from '@n8n/errors';
 import type { ProjectScopeService, WorkflowSharingService } from '@n8n/backend-services';
 import { ActiveWorkflowsService } from '@/services/active-workflows.service';
-import type {
-	WorkflowPublicationStatusService,
-	WorkflowPublicationStatusWithDetails,
-} from '@/workflows/publication/workflow-publication-status.service';
+import type { WorkflowPublicationStatusService } from '@/workflows/publication/workflow-publication-status.service';
 import type { WorkflowFinderService } from '@/workflows/workflow-finder.service';
 
 describe('ActiveWorkflowsService', () => {
@@ -43,9 +40,7 @@ describe('ActiveWorkflowsService', () => {
 
 			const ids = await service.getAllActiveIdsInStorage();
 			expect(ids).toEqual(['2', '3', '4']);
-			expect(
-				workflowPublicationStatusService.getSettledStatusesByWorkflowIds,
-			).not.toHaveBeenCalled();
+			expect(workflowPublicationStatusService.getListStatusesByWorkflowIds).not.toHaveBeenCalled();
 		});
 	});
 
@@ -116,23 +111,11 @@ describe('ActiveWorkflowsService', () => {
 			workflowsConfig.useWorkflowPublicationService = true;
 			activationErrorsService.getAll.mockResolvedValue({ 1: 'some error' });
 			workflowRepository.getActiveIds.mockResolvedValue(['1', '2', '3', '4', '5']);
-			workflowPublicationStatusService.getSettledStatusesByWorkflowIds.mockResolvedValue(
+			workflowPublicationStatusService.getListStatusesByWorkflowIds.mockResolvedValue(
 				new Map([
-					[
-						'2',
-						mock<WorkflowPublicationStatusWithDetails>({ status: 'failed', liveVersionId: null }),
-					],
-					[
-						'3',
-						mock<WorkflowPublicationStatusWithDetails>({ status: 'partial', liveVersionId: 'v-1' }),
-					],
-					[
-						'5',
-						mock<WorkflowPublicationStatusWithDetails>({
-							status: 'published',
-							liveVersionId: 'v-1',
-						}),
-					],
+					['2', 'failed'],
+					['3', 'partial'],
+					['5', 'published'],
 				]),
 			);
 		});
@@ -155,22 +138,12 @@ describe('ActiveWorkflowsService', () => {
 			},
 		])('should drop workflows whose publication failed from $entry', async ({ read }) => {
 			expect(await read()).toEqual(['3', '4', '5']);
-			expect(workflowPublicationStatusService.getSettledStatusesByWorkflowIds).toHaveBeenCalledWith(
-				['2', '3', '4', '5'],
-			);
-		});
-
-		it('keeps the previous running version after a refused republish', async () => {
-			workflowPublicationStatusService.getSettledStatusesByWorkflowIds.mockResolvedValue(
-				new Map([
-					[
-						'2',
-						mock<WorkflowPublicationStatusWithDetails>({ status: 'failed', liveVersionId: 'v-1' }),
-					],
-				]),
-			);
-
-			expect(await service.getAllActiveIdsInStorage()).toContain('2');
+			expect(workflowPublicationStatusService.getListStatusesByWorkflowIds).toHaveBeenCalledWith([
+				'2',
+				'3',
+				'4',
+				'5',
+			]);
 		});
 
 		it('should check only the workflows a member can read', async () => {
@@ -183,9 +156,10 @@ describe('ActiveWorkflowsService', () => {
 			expect(workflowSharingService.getSharedWorkflowIds).toHaveBeenCalledWith(user, {
 				scopes: ['workflow:read'],
 			});
-			expect(workflowPublicationStatusService.getSettledStatusesByWorkflowIds).toHaveBeenCalledWith(
-				['2', '3'],
-			);
+			expect(workflowPublicationStatusService.getListStatusesByWorkflowIds).toHaveBeenCalledWith([
+				'2',
+				'3',
+			]);
 		});
 
 		describe('getActivationError', () => {
