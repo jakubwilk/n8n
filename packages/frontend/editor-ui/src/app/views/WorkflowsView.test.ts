@@ -311,9 +311,52 @@ describe('WorkflowsView', () => {
 			);
 		});
 
-		it('should ignore the folders query on the overview page', async () => {
+		it('should filter the overview by the Personal folders in the query', async () => {
 			await router.replace({ query: { folders: 'folder-a' } });
 			settingsStore.isFoldersFeatureEnabled = true;
+			mockedStore(useProjectsStore).personalProject = { id: 'personal-1' } as Project;
+			vi.spyOn(projectPages, 'isOverviewSubPage', 'get').mockReturnValue(true);
+			vi.spyOn(projectPages, 'isSharedSubPage', 'get').mockReturnValue(false);
+
+			renderComponent({ pinia });
+			await waitAllPromises();
+
+			expect(workflowsListStore.fetchWorkflowsPage).toHaveBeenCalledWith(
+				expect.any(String),
+				expect.any(Number),
+				expect.any(Number),
+				expect.any(String),
+				expect.objectContaining({ parentFolderId: undefined, parentFolderIds: ['folder-a'] }),
+				false,
+				expect.any(Boolean),
+			);
+		});
+
+		it('should ignore the folders query on the overview page without a Personal project', async () => {
+			await router.replace({ query: { folders: 'folder-a' } });
+			settingsStore.isFoldersFeatureEnabled = true;
+			mockedStore(useProjectsStore).personalProject = null;
+			vi.spyOn(projectPages, 'isOverviewSubPage', 'get').mockReturnValue(true);
+			vi.spyOn(projectPages, 'isSharedSubPage', 'get').mockReturnValue(false);
+
+			renderComponent({ pinia });
+			await waitAllPromises();
+
+			expect(workflowsListStore.fetchWorkflowsPage).toHaveBeenCalledWith(
+				expect.any(String),
+				expect.any(Number),
+				expect.any(Number),
+				expect.any(String),
+				expect.objectContaining({ parentFolderIds: undefined }),
+				false,
+				expect.any(Boolean),
+			);
+		});
+
+		it('should ignore the folders query when folders are not licensed', async () => {
+			await router.replace({ query: { folders: 'folder-a' } });
+			settingsStore.isFoldersFeatureEnabled = false;
+			mockedStore(useProjectsStore).personalProject = { id: 'personal-1' } as Project;
 			vi.spyOn(projectPages, 'isOverviewSubPage', 'get').mockReturnValue(true);
 			vi.spyOn(projectPages, 'isSharedSubPage', 'get').mockReturnValue(false);
 
@@ -750,6 +793,23 @@ describe('Folders', () => {
 		expect(getByTestId('resources-list-wrapper').querySelectorAll('.listItem')).toHaveLength(2);
 		expect(getByTestId('workflow-card-name')).toHaveTextContent(TEST_WORKFLOW_RESOURCE.name);
 		expect(getByTestId('folder-card-name')).toHaveTextContent(TEST_FOLDER_RESOURCE.name);
+	});
+
+	it('should offer the Personal folders in the overview filter', async () => {
+		settingsStore.isFoldersFeatureEnabled = true;
+		mockedStore(useProjectsStore).personalProject = { id: 'personal-1' } as Project;
+		vi.spyOn(projectPages, 'isOverviewSubPage', 'get').mockReturnValue(true);
+		vi.spyOn(projectPages, 'isSharedSubPage', 'get').mockReturnValue(false);
+		foldersStore.totalWorkflowCount = 1;
+		foldersStore.fetchFoldersAvailableForMove.mockResolvedValue([]);
+		workflowsListStore.fetchWorkflowsPage.mockResolvedValue([TEST_WORKFLOW_RESOURCE]);
+
+		const { getByTestId } = renderComponent({ pinia });
+		await waitAllPromises();
+		await userEvent.click(getByTestId('resources-list-filters-trigger'));
+
+		await waitFor(() => expect(getByTestId('folder-filter-dropdown')).toBeInTheDocument());
+		expect(foldersStore.fetchFoldersAvailableForMove).toHaveBeenCalledWith('personal-1');
 	});
 
 	it('should show folder actions menu when not in the overview or sharing pages', async () => {
