@@ -133,9 +133,19 @@ To oprogramowanie jest zmodyfikowaną wersją n8n. Licencja Sustainable Use Lice
 | Długie nazwy folderów i workflowów zawijają się w filtrach (dropdown) | `features/core/folders/components/FolderFilterDropdown.vue`, `features/credentials/components/WorkflowFilterDropdown.vue` |
 | Sekcja „Folders” w lewym panelu: lista folderów głównych z projektu Personal. Widoczna tylko z licencją folderów (`feat:folders`) i przy rozwiniętym panelu | nowy `features/core/folders/components/PersonalFoldersNavigation.vue`, wpięcie w `features/collaboration/projects/components/ProjectNavigation.vue` (komentarz `Fork:`), filtr `parentFolderId` w `features/core/folders/folders.api.ts`, klucz `projects.menu.folders` w `@n8n/i18n/src/locales/en.json` |
 
+| Sekcja „Server” na Overview: CPU, RAM i dysk serwera z wykresami z ostatniej godziny. Moduł backendu `host-stats`, domyślnie wyłączony | nowy moduł `packages/cli/src/modules/host-stats/`, typy `packages/@n8n/api-types/src/host-stats.ts` (eksport w `index.ts`), nazwa w `MODULE_NAMES` w `packages/@n8n/backend-common/src/modules/modules.config.ts`, nowy katalog `features/fork/host-stats/`, wpięcie w `features/collaboration/projects/components/ProjectHeader.vue` (komentarz `Fork:`), klucze `hostStats.*` w `@n8n/i18n/src/locales/en.json` |
+
 Ścieżki `features/...` są względem `packages/frontend/editor-ui/src/`. Przy konflikcie w tych plikach podczas merge tagu upstream zachowaj zmianę z listy.
 
 Nie zmieniamy plików `.ee.` (licencja `LICENSE_EE.md`) i nie obchodzimy sprawdzania licencji.
+
+## Sekcja „Server” na Overview
+
+Moduł `host-stats` pokazuje pod paskiem Insights zużycie CPU, RAM i dysku serwera. Backend co 5 s czyta `/proc/stat`, `/proc/meminfo` i `statfs('/')` i trzyma ostatnią godzinę próbek w pamięci. Docker nie izoluje tych plików, więc kontener n8n widzi wartości całego hosta. Kod nie uruchamia poleceń powłoki i nie potrzebuje sekretów.
+
+- **Włączanie:** w Coolify na usłudze n8n ustaw `N8N_ENABLED_MODULES=host-stats`. Jeśli zmienna już istnieje, dopisz `host-stats` po przecinku. Bez zmiennej endpoint `GET /rest/host-stats` nie istnieje, a sekcji nie ma.
+- **Dostęp:** owner i admin (scope `orchestration:read`). Member nie widzi sekcji, a endpoint zwraca mu 403.
+- **Ograniczenia:** historia znika po restarcie n8n. Dysk to system plików, na którym leży kontener (zwykle główny dysk hosta). Statusu usług (`docker inspect`) nie ma, bo wymaga `docker.sock`.
 
 ## Build obrazów
 

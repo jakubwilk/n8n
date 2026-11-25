@@ -51,6 +51,8 @@ export const MODULE_NAMES = [
 	'knowledge',
 	'execution-limits',
 	'execution-ledger',
+	// Fork: host stats. Not in the default modules, so it runs only when enabled.
+	'host-stats',
 ] as const;
 
 export type ModuleName = (typeof MODULE_NAMES)[number];

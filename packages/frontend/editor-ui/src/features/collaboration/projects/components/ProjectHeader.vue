@@ -37,6 +37,8 @@ import { useCreateAgent } from '@/features/agents/composables/useCreateAgent';
 import { useUsersStore } from '@n8n/stores/users.store';
 import { useFavoritesStore } from '@/app/stores/favorites.store';
 import { useCreateApp } from '@n8n/frontend-module-apps';
+// Fork: host stats
+import HostStatsPanel from '@/features/fork/host-stats/HostStatsPanel.vue';
 
 // Lazy, so the badges and their preview code stay out of the boot chunk.
 const PromotionPreviewBadges = defineAsyncComponent(loadPromotionPreviewBadges);
@@ -611,6 +613,8 @@ const onSelect = (action: string, source: CreateSource) => {
 			</div>
 		</div>
 		<slot></slot>
+		<!-- Fork: host stats -->
+		<HostStatsPanel v-if="projectPages.isOverviewSubPage" />
 		<div :class="$style.actions">
 			<ProjectTabs
 				:page-type="pageType"

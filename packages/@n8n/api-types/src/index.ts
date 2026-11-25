@@ -4,6 +4,8 @@ export * from './dto';
 export type * from './push';
 export type * from './scaling';
 export type * from './process-internals';
+// Fork: host stats
+export type * from './host-stats';
 export * from './frontend-settings';
 export type * from './user';
 export type * from './consent';
