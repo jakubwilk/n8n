@@ -491,22 +491,25 @@ const goToUpgrade = () => {
 <style module lang="scss">
 @use '@n8n/design-system/css/mixins/breakpoints';
 
+// Fork: the wrapper grows past the page height when the list needs it, so the
+// page content scrolls. The list keeps at least 60vh and its own scroll.
 .execListWrapper {
 	padding: var(--spacing--lg) var(--spacing--2xl);
 	display: flex;
 	flex-direction: column;
-	overflow: hidden;
+	align-self: flex-start;
+	min-height: 100%;
 	width: 100%;
 	max-width: var(--content-container--width);
 
 	@include breakpoints.breakpoint('sm-and-down') {
-		padding: var(--spacing--sm) var(--spacing--sm) 0;
+		padding: var(--spacing--sm) var(--spacing--sm) var(--spacing--lg);
 	}
 }
 
 .execList {
-	flex-shrink: 1; /* Allows shrinking when needed */
-	max-height: 100%; /* Prevents overflowing the parent */
+	flex: 1 1 0;
+	min-height: 60vh;
 	overflow: auto; /* Scroll only when needed */
 }
 

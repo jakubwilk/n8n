@@ -40,6 +40,9 @@ defineProps<Props>();
 	.body {
 		position: relative;
 		height: 100%;
+		// Fork: the list keeps at least this height under a tall header. The
+		// page content then scrolls, and the list keeps its own scroll.
+		min-height: 60vh;
 	}
 }
 </style>

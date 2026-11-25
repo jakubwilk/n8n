@@ -667,7 +667,7 @@ defineExpose({
 					v-else-if="filteredAndSortedResources.length > 0"
 					ref="listWrapperRef"
 					data-test-id="resources-list-wrapper"
-					:class="$style.listWrapper"
+					:class="[$style.listWrapper, type !== 'list-paginated' && $style.listWrapperSpaced]"
 				>
 					<!-- FULL SCROLLING LIST (Shows all resources, filtering and sorting is done in this component) -->
 					<N8nRecycleScroller
@@ -797,6 +797,13 @@ defineExpose({
 	position: absolute;
 	height: 100%;
 	width: 100%;
+}
+
+// Fork: lists without pagination end with the same gap as the pagination below
+// a paginated list.
+.listWrapperSpaced {
+	inset: 0 0 var(--spacing--lg);
+	height: auto;
 }
 
 .paginatedListWrapper {

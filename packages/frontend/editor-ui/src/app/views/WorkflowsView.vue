@@ -599,9 +599,17 @@ const showWontExecuteCallout = computed(
 		isWontExecuteFilterActive.value && !loading.value && workflowsListStore.totalWorkflowCount > 0,
 );
 
-// The folder filter exists only on project pages, where folders are shown.
+// Fork: the project whose folders the folder filter offers. Overview has no project
+// in the route, so it offers the folders of the Personal project.
+const folderFilterProjectId = computed(() => {
+	if (!foldersEnabled.value) return undefined;
+	if (projectPages.isOverviewSubPage) return projectsStore.personalProject?.id;
+	const projectId = route.params?.projectId;
+	return showFolders.value && typeof projectId === 'string' ? projectId : undefined;
+});
+
 const isFolderFilterActive = computed(
-	() => showFolders.value && filters.value.folders.length > 0,
+	() => folderFilterProjectId.value !== undefined && filters.value.folders.length > 0,
 );
 
 const hasFilters = computed(() => {
@@ -2603,7 +2611,7 @@ const onNameSubmit = async (name: string) => {
 					@update:model-value="setKeyValue('tags', $event)"
 				/>
 			</div>
-			<div v-if="showFolders && route.params?.projectId" class="mb-s">
+			<div v-if="folderFilterProjectId" class="mb-s">
 				<N8nInputLabel
 					:label="i18n.baseText('workflows.filters.folders')"
 					:bold="false"
@@ -2613,7 +2621,7 @@ const onNameSubmit = async (name: string) => {
 				/>
 				<FolderFilterDropdown
 					:model-value="filters.folders"
-					:project-id="String(route.params.projectId)"
+					:project-id="folderFilterProjectId"
 					@update:model-value="setKeyValue('folders', $event)"
 				/>
 			</div>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // Fork: CPU, memory and disk usage of the server, shown under the insights summary.
+import { N8nText } from '@n8n/design-system';
 import { useI18n } from '@n8n/i18n';
 import { getResourcePermissions } from '@n8n/permissions';
 import { useSettingsStore } from '@n8n/stores/settings.store';
@@ -90,8 +91,10 @@ const cores = computed(() =>
 <template>
 	<section v-if="isEnabled" :class="$style.hostStats" data-test-id="host-stats">
 		<header :class="$style.header">
-			<strong>{{ i18n.baseText('hostStats.title') }}</strong>
-			<small v-if="stats">{{ i18n.baseText('hostStats.lastHour') }} · {{ uptime }}</small>
+			<N8nText bold color="text-dark">{{ i18n.baseText('hostStats.title') }}</N8nText>
+			<N8nText v-if="stats" color="text-light">
+				{{ i18n.baseText('hostStats.lastHour') }} · {{ uptime }}
+			</N8nText>
 		</header>
 
 		<p v-if="hasError && !latest" :class="$style.unavailable" data-test-id="host-stats-unavailable">
@@ -148,22 +151,12 @@ const cores = computed(() =>
 	margin-bottom: var(--spacing--lg);
 }
 
+/* Same text and spacing as the Overview description above the insights summary. */
 .header {
 	display: flex;
 	align-items: baseline;
 	gap: var(--spacing--xs);
-	margin-bottom: var(--spacing--2xs);
-
-	strong {
-		color: var(--color--text--shade-1);
-		font-size: var(--font-size--sm);
-		font-weight: var(--font-weight--medium);
-	}
-
-	small {
-		color: var(--color--text--tint-1);
-		font-size: var(--font-size--2xs);
-	}
+	margin-bottom: var(--spacing--md);
 }
 
 .unavailable {
