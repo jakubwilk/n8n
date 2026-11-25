@@ -6,7 +6,7 @@ import { defineComponent, h, ref } from 'vue';
 import type { Ref } from 'vue';
 
 import * as hostStatsApi from './hostStats.api';
-import { MAX_SAMPLES, useHostStats } from './useHostStats';
+import { useHostStats } from './useHostStats';
 
 vi.mock('./hostStats.api', () => ({
 	fetchHostStats: vi.fn(),
@@ -32,7 +32,7 @@ const response = (samples: HostStatsSample[]): HostStatsResponse => ({
 
 function mountComposable(enabled: Ref<boolean>) {
 	let result!: ReturnType<typeof useHostStats>;
-	render(
+	const { unmount } = render(
 		defineComponent({
 			setup() {
 				result = useHostStats(enabled);
@@ -40,54 +40,30 @@ function mountComposable(enabled: Ref<boolean>) {
 			},
 		}),
 	);
-	return result;
+	return { ...result, unmount };
 }
-
-const timestamps = (stats: Ref<HostStatsResponse | null>) =>
-	stats.value?.samples.map((s) => s.timestamp);
 
 describe('useHostStats', () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.clearAllMocks();
-		createTestingPinia();
+		createTestingPinia({ stubActions: false });
 	});
 
 	afterEach(() => {
 		vi.useRealTimers();
 	});
 
-	it('loads the history, then appends only new samples', async () => {
-		vi.mocked(hostStatsApi.fetchHostStats).mockResolvedValue(response([sample(1), sample(2)]));
-		vi.mocked(hostStatsApi.fetchHostStatsLatest)
-			.mockResolvedValueOnce(response([sample(2)]))
-			.mockResolvedValueOnce(response([sample(3)]));
+	it('loads the history, then polls for the latest sample', async () => {
+		vi.mocked(hostStatsApi.fetchHostStats).mockResolvedValue(response([sample(1)]));
+		vi.mocked(hostStatsApi.fetchHostStatsLatest).mockResolvedValue(response([sample(2)]));
 
 		const { stats } = mountComposable(ref(true));
 		await flushPromises();
-		expect(timestamps(stats)).toEqual([1, 2]);
+		expect(stats.value?.samples.map((s) => s.timestamp)).toEqual([1]);
 
 		await vi.advanceTimersByTimeAsync(5000);
-		expect(timestamps(stats)).toEqual([1, 2]);
-
-		await vi.advanceTimersByTimeAsync(5000);
-		expect(timestamps(stats)).toEqual([1, 2, 3]);
-	});
-
-	it('keeps at most one hour of samples', async () => {
-		const history = Array.from({ length: MAX_SAMPLES }, (_, i) => sample(i + 1));
-		vi.mocked(hostStatsApi.fetchHostStats).mockResolvedValue(response(history));
-		vi.mocked(hostStatsApi.fetchHostStatsLatest).mockResolvedValue(
-			response([sample(MAX_SAMPLES + 1)]),
-		);
-
-		const { stats } = mountComposable(ref(true));
-		await flushPromises();
-		await vi.advanceTimersByTimeAsync(5000);
-
-		expect(stats.value?.samples).toHaveLength(MAX_SAMPLES);
-		expect(stats.value?.samples.at(0)?.timestamp).toBe(2);
-		expect(stats.value?.samples.at(-1)?.timestamp).toBe(MAX_SAMPLES + 1);
+		expect(stats.value?.samples.map((s) => s.timestamp)).toEqual([1, 2]);
 	});
 
 	it('does not poll while disabled', async () => {
@@ -103,13 +79,28 @@ describe('useHostStats', () => {
 		expect(hostStatsApi.fetchHostStats).toHaveBeenCalledTimes(1);
 	});
 
-	it('reports an error when the request fails', async () => {
-		vi.mocked(hostStatsApi.fetchHostStats).mockRejectedValue(new Error('403'));
+	it('stops polling after unmount', async () => {
+		vi.mocked(hostStatsApi.fetchHostStats).mockResolvedValue(response([sample(1)]));
+		vi.mocked(hostStatsApi.fetchHostStatsLatest).mockResolvedValue(response([sample(2)]));
 
-		const { hasError, stats } = mountComposable(ref(true));
+		const { unmount } = mountComposable(ref(true));
 		await flushPromises();
+		unmount();
+		await vi.advanceTimersByTimeAsync(20000);
 
-		expect(hasError.value).toBe(true);
-		expect(stats.value).toBeNull();
+		expect(hostStatsApi.fetchHostStatsLatest).not.toHaveBeenCalled();
+	});
+
+	it('keeps the data of an earlier mount', async () => {
+		vi.mocked(hostStatsApi.fetchHostStats).mockResolvedValueOnce(response([sample(1)]));
+
+		const first = mountComposable(ref(true));
+		await flushPromises();
+		first.unmount();
+
+		vi.mocked(hostStatsApi.fetchHostStats).mockReturnValueOnce(new Promise(() => {}));
+		const { stats } = mountComposable(ref(true));
+
+		expect(stats.value?.samples.map((s) => s.timestamp)).toEqual([1]);
 	});
 });

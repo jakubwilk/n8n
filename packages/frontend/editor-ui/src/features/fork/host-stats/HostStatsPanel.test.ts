@@ -8,6 +8,7 @@ import { createComponentRenderer } from '@/__tests__/render';
 import { mockedStore } from '@/__tests__/utils';
 
 import * as hostStatsApi from './hostStats.api';
+import { useHostStatsStore } from './hostStats.store';
 import HostStatsPanel from './HostStatsPanel.vue';
 
 vi.mock('./hostStats.api', () => ({
@@ -46,7 +47,7 @@ describe('HostStatsPanel', () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		createTestingPinia();
+		createTestingPinia({ stubActions: false });
 		settingsStore = mockedStore(useSettingsStore);
 		usersStore = mockedStore(useUsersStore);
 		settingsStore.isModuleActive.mockImplementation((name) => name === 'host-stats');
@@ -65,6 +66,15 @@ describe('HostStatsPanel', () => {
 		expect(getByTestId('host-stats-disk')).toHaveTextContent('95.0%');
 		expect(getByTestId('host-stats-disk')).toHaveTextContent('5.0 GB free');
 		expect(getByTestId('host-stats')).toHaveTextContent('Up 2d 3h');
+	});
+
+	it('draws the data of an earlier visit before the request ends', () => {
+		useHostStatsStore().stats = response([sample({ cpuPercent: 42 })]);
+		vi.mocked(hostStatsApi.fetchHostStats).mockReturnValue(new Promise(() => {}));
+
+		const { getByTestId } = renderComponent();
+
+		expect(getByTestId('host-stats-cpu')).toHaveTextContent('42.0%');
 	});
 
 	it('shows -- before the first CPU value exists', async () => {
