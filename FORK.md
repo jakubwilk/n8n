@@ -10,6 +10,7 @@ Komunikacja z właścicielem repozytorium: po polsku.
 2. **Wszystkie zmiany idą przez pull requesty na GitHubie.** Nie rób lokalnego `git merge` do `dev` ani `build` z pushem. Pracujesz na gałęzi, robisz push i otwierasz PR.
 3. **Bez force-pushy na `dev` i `build`**, chyba że właściciel wprost o to poprosi.
 4. **Scalenie PR do `build` = wdrożenie na produkcję.** Workflow buduje obrazy i sam aktualizuje n8n w Coolify. Nie scalaj niczego do `build` bez wyraźnej zgody właściciela. Nie łącz się z serwerem ani z API Coolify z tego repozytorium. Dokumentacja serwera jest w osobnym projekcie (`D:\04.devops\ovh`).
+5. **Claude nie robi commitów, push ani PR.** Zostawia zmiany w drzewie roboczym i na koniec podaje listę zmienionych plików. Właściciel sam dzieli zmiany na commity. Założenie gałęzi i lokalne testy są w porządku.
 
 ## Gałęzie
 
@@ -131,6 +132,7 @@ To oprogramowanie jest zmodyfikowaną wersją n8n. Licencja Sustainable Use Lice
 | Zmiana | Pliki |
 |---|---|
 | Długie nazwy folderów i workflowów zawijają się w filtrach (dropdown) | `features/core/folders/components/FolderFilterDropdown.vue`, `features/credentials/components/WorkflowFilterDropdown.vue` |
+| Listy zasobów (workflowy, credentiale, egzekucje, data tables, agenty, zmienne) mają co najmniej 60% wysokości okna i odstęp na dole. Gdy nagłówek i lista się nie mieszczą, przewija się cała treść strony | `app/components/layouts/PageViewLayoutList.vue`, `app/components/layouts/ResourcesListLayout.vue`, `features/execution/executions/components/global/GlobalExecutionsList.vue` (komentarze `Fork:`) |
 | Sekcja „Folders” w lewym panelu: lista folderów głównych z projektu Personal. Widoczna tylko z licencją folderów (`feat:folders`) i przy rozwiniętym panelu | nowy `features/core/folders/components/PersonalFoldersNavigation.vue`, wpięcie w `features/collaboration/projects/components/ProjectNavigation.vue` (komentarz `Fork:`), filtr `parentFolderId` w `features/core/folders/folders.api.ts`, klucz `projects.menu.folders` w `@n8n/i18n/src/locales/en.json` |
 
 | Sekcja „Server” na Overview: CPU, RAM i dysk serwera z wykresami z ostatniej godziny. Moduł backendu `host-stats`, domyślnie wyłączony | nowy moduł `packages/cli/src/modules/host-stats/`, typy `packages/@n8n/api-types/src/host-stats.ts` (eksport w `index.ts`), nazwa w `MODULE_NAMES` w `packages/@n8n/backend-common/src/modules/modules.config.ts`, nowy katalog `features/fork/host-stats/`, wpięcie w `features/collaboration/projects/components/ProjectHeader.vue` (komentarz `Fork:`), klucze `hostStats.*` w `@n8n/i18n/src/locales/en.json` |
